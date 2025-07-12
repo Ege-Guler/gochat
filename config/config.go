@@ -4,95 +4,75 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"github.com/pion/stun"
 )
 
-type Config struct {
-	LocalAddr  string
-	RemoteAddr string
-}
+func GetPublicIPAndConn() (*net.UDPConn, *net.UDPAddr, error) {
+	stunServerAddr := "stun.l.google.com:19302"
 
-/*
-Parse RemoteAddr and LocalAddr
-
-if LocalAddr is not present get local ip
-
-!TODO improve checks & better parsing
-*/
-func ParseArgs() *Config {
-
-	cfg := &Config{}
-
-	if len(os.Args) <= 1 {
-		fmt.Println("unsufficient args")
-		os.Exit(1)
-	} else if len(os.Args) == 3 {
-		cfg.LocalAddr = os.Args[1]
-
-	} else if len(os.Args) == 2 {
-		cfg.LocalAddr = getLocalIp()
+	// unconnected UDP socket to listen for messages
+	// listen on all network ifaces and a random port(0)
+	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
+	if err != nil {
+		return nil, nil, fmt.Errorf("listening on udp port failed: %w", err)
 	}
 
-	cfg.RemoteAddr = os.Args[len(os.Args)-1]
+	// Manually perform the STUN request.
+	raddr, err := net.ResolveUDPAddr("udp", stunServerAddr)
+	if err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("resolving stun server address failed: %w", err)
+	}
 
-	return cfg
+	// Build the STUN Binding Request message.
+	message := stun.MustBuild(stun.TransactionID, stun.BindingRequest)
+
+	if _, err := conn.WriteToUDP(message.Raw, raddr); err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("sending stun request failed: %w", err)
+	}
+
+	// buffer to receive the response.
+	buf := make([]byte, 1024)
+
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	n, _, err := conn.ReadFromUDP(buf)
+	if err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("reading stun response failed: %w", err)
+	}
+
+	conn.SetReadDeadline(time.Time{})
+
+	var response stun.Message
+	response.Raw = buf[:n]
+	if err := response.Decode(); err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("decoding stun response failed: %w", err)
+	}
+
+	var publicAddr stun.XORMappedAddress
+	if err := publicAddr.GetFrom(&response); err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("getting public address from response failed: %w", err)
+	}
+
+	resolvedAddr := &net.UDPAddr{
+		IP:   publicAddr.IP,
+		Port: publicAddr.Port,
+	}
+
+	return conn, resolvedAddr, nil
 }
 
 func ParseRemoteAddr(raddr string) *net.UDPAddr {
 	udpAddr, err := net.ResolveUDPAddr("udp", raddr)
 	if err != nil {
-		panic(err)
+		fmt.Printf("Invalid remote address format '%s'. Please use 'ip:port'. Error: %v\n", raddr, err)
+		os.Exit(1)
 	}
 	return udpAddr
-}
-
-func getLocalIp() string {
-
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("localip", conn.LocalAddr().String())
-
-	defer conn.Close()
-
-	return conn.LocalAddr().String()
-}
-
-func GetLocalUDPAddr() *net.UDPAddr {
-
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("localip", conn.LocalAddr().String())
-
-	defer conn.Close()
-
-	udpAddr := conn.LocalAddr().(*net.UDPAddr)
-
-	return udpAddr
-}
-
-func GetPublicIp() *net.UDPAddr {
-	conn, _ := net.Dial("udp", "stun.l.google.com:19302")
-	defer conn.Close()
-
-	c, err := stun.NewClient(conn)
-	if err != nil {
-		panic(err)
-	}
-	defer c.Close()
-
-	var addr stun.XORMappedAddress
-	c.Do(stun.MustBuild(stun.TransactionID, stun.BindingRequest), func(e stun.Event) {
-		if err := addr.GetFrom(e.Message); err != nil {
-			panic(err)
-		}
-	})
-	return &net.UDPAddr{
-		IP:   addr.IP,
-		Port: addr.Port,
-	}
 }

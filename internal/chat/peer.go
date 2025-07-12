@@ -8,50 +8,27 @@ import (
 )
 
 type Peer struct {
-	LocalAddr  *net.UDPAddr
 	RemoteAddr *net.UDPAddr
 	Conn       *net.UDPConn
 	SendQueue  chan []byte
 }
 
-func NewPeer(local string, remote string) (*Peer, error) {
-
-	laddr, err := net.ResolveUDPAddr("udp", local)
-	if err != nil {
-		return nil, err
-	}
-
-	raddr, err := net.ResolveUDPAddr("udp", remote)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.ListenUDP("udp", laddr)
-	if err != nil {
-		return nil, err
-	}
+func NewPeer(conn *net.UDPConn, raddr *net.UDPAddr) (*Peer, error) {
 
 	return &Peer{
-		LocalAddr:  laddr,
 		RemoteAddr: raddr,
 		Conn:       conn,
 		SendQueue:  make(chan []byte, 100),
 	}, nil
 }
 
-func NewPeerUDPAddr(laddr *net.UDPAddr, raddr *net.UDPAddr) (*Peer, error) {
-	conn, err := net.ListenUDP("udp", laddr)
+func (p *Peer) PunchHole() {
+
+	msg := []byte("powpow")
+	_, err := p.Conn.WriteToUDP(msg, p.RemoteAddr)
 	if err != nil {
-		return nil, err
+		fmt.Println("Punch failed", err)
 	}
-
-	return &Peer{
-		LocalAddr:  laddr,
-		RemoteAddr: raddr,
-		Conn:       conn,
-		SendQueue:  make(chan []byte, 100),
-	}, nil
-
 }
 
 func (p *Peer) Start() {
@@ -69,17 +46,17 @@ func (p *Peer) sendLoop() {
 	}
 }
 
+// !TODO ip base filtering
 func (p *Peer) receiveLoop() {
 	buf := make([]byte, 2048)
 	for {
-		n, addr, err := p.Conn.ReadFromUDP(buf)
+		n, _, err := p.Conn.ReadFromUDP(buf)
 		if err != nil {
 			fmt.Println("Recieve error:", err)
 			continue
 		}
-		if addr.String() == p.RemoteAddr.String() {
-			fmt.Printf("\r< %s\n", string(buf[:n]))
-		}
+		fmt.Printf("\r< %s\n", string(buf[:n]))
+
 	}
 }
 
