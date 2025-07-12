@@ -14,6 +14,9 @@ import (
 func main() {
 
 	localAddr := config.GetPublicIp()
+
+	laddr := config.GetLocalUDPAddr()
+
 	fmt.Println("Your Public Ip: ", localAddr)
 	fmt.Print("Remote addr: ")
 	reader := bufio.NewReader(os.Stdin)
@@ -21,7 +24,7 @@ func main() {
 	input = strings.TrimSpace(input)
 	remoteAddr := config.ParseRemoteAddr(input)
 
-	p, err := chat.NewPeerUDPAddr(localAddr, remoteAddr)
+	p, err := chat.NewPeerUDPAddr(laddr, remoteAddr)
 
 	//cfg := config.ParseArgs()
 	//p, err := chat.NewPeer(cfg.LocalAddr, cfg.RemoteAddr)

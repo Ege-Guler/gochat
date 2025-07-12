@@ -60,6 +60,21 @@ func getLocalIp() string {
 	return conn.LocalAddr().String()
 }
 
+func GetLocalUDPAddr() *net.UDPAddr {
+
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("localip", conn.LocalAddr().String())
+
+	defer conn.Close()
+
+	udpAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return udpAddr
+}
+
 func GetPublicIp() *net.UDPAddr {
 	conn, _ := net.Dial("udp", "stun.l.google.com:19302")
 	defer conn.Close()
