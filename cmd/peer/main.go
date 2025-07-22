@@ -16,7 +16,7 @@ import (
 
 func main() {
 
-	//mqttTest()
+	mqttTest()
 
 	conn, publicAddr, err := netconf.GetPublicIPAndConn()
 	if err != nil {
@@ -55,5 +55,5 @@ func mqttTest() {
 	fmt.Println("Loaded configuration:")
 	fmt.Println(conf)
 
-	mqtt.StartRelay()
+	mqtt.StartSession()
 }

@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -9,7 +10,25 @@ import (
 	"github.com/Ege-Guler/gochat/internal/config"
 )
 
-func StartRelay() error {
+func StartSession() error {
+
+	log.Println("Starting session...")
+
+	s := &Session{}
+
+	if err := s.GenerateSessionID(); err != nil {
+		return fmt.Errorf("failed to generate session ID: %w", err)
+	}
+	if err := s.GenerateOwnKeys(); err != nil {
+		return fmt.Errorf("failed to generate private and public keys: %w", err)
+	}
+
+	startRelay(s)
+
+	return nil
+}
+
+func startRelay(s *Session) error {
 
 	var conf config.Config
 	if err := conf.LoadConf(); err != nil {
@@ -35,7 +54,7 @@ func StartRelay() error {
 		return fmt.Errorf("failed to subscribe: %w", err)
 	}
 
-	if err := publish(client, &conf); err != nil {
+	if err := publish(client, &conf, s); err != nil {
 		return fmt.Errorf("failed to publish messages: %w", err)
 	}
 
@@ -56,18 +75,25 @@ func subscribe(client mqtt.Client, cfg *config.Config) error {
 	return nil
 }
 
-func publish(client mqtt.Client, cfg *config.Config) error {
-	for i := 0; i < 10; i++ {
-		message := fmt.Sprintf("Message %d", i)
-		token := client.Publish(cfg.MQTT.Topic, byte(cfg.MQTT.QoS), cfg.MQTT.Retain, message)
-		token.Wait()
+func publish(client mqtt.Client, cfg *config.Config, s *Session) error {
 
-		if token.Error() != nil {
-			return fmt.Errorf("failed to publish message: %w", token.Error())
-		}
+	log.Println("Publishing messages to topic:", cfg.MQTT.Topic)
 
-		fmt.Printf("Published message: %s\n", message)
-		time.Sleep(1 * time.Second)
+	em := s.ToExchangeMessage()
+	payload, err := em.EncodeExchangeMessage()
+	if err != nil {
+		return fmt.Errorf("failed to encode exchange message: %w", err)
 	}
+
+	token := client.Publish(cfg.MQTT.Topic, byte(cfg.MQTT.QoS), cfg.MQTT.Retain, payload)
+	token.Wait()
+
+	if token.Error() != nil {
+		return fmt.Errorf("failed to publish message: %w", token.Error())
+	}
+
+	fmt.Printf("Published message: %s\n", payload)
+	time.Sleep(1 * time.Second)
+
 	return nil
 }
