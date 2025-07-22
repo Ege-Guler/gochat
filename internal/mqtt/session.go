@@ -13,6 +13,7 @@ type Session struct {
 	AESKey          []byte
 	EncryptedAESKey []byte
 	Nonce           []byte
+	PeerAESKey      []byte
 }
 
 func (s *Session) GenerateSessionID() error {

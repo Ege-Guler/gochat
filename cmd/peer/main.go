@@ -55,5 +55,10 @@ func mqttTest() {
 	fmt.Println("Loaded configuration:")
 	fmt.Println(conf)
 
-	mqtt.StartSession()
+	// temporary solution to start MQTT session
+	go func() {
+		if err := mqtt.StartSession(); err != nil {
+			log.Println("Error starting MQTT session:", err)
+		}
+	}()
 }
