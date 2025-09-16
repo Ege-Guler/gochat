@@ -1,2 +1,3 @@
 *.yaml
+!conf.yaml.example
 *.txt
