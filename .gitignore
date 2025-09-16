@@ -1,3 +1,7 @@
 *.yaml
 !conf.yaml.example
 *.txt
+
+# Binaries
+gochat
+/cmd/peer/peer
